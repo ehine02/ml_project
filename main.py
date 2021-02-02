@@ -2,6 +2,8 @@ import tensorflow as tf
 from tensorflow import feature_column
 from tensorflow import keras
 from tensorflow.keras import layers
+from tensorflow.python.keras.optimizer_v2.optimizer_v2 import OptimizerV2
+
 import pandas as pd
 import numpy as np
 
@@ -68,8 +70,8 @@ if __name__ == '__main__':
 
     model = tf.keras.Sequential([
         feature_layer,
-        layers.Dense(7**4, activation=keras.activations.relu),
-        layers.Dense(7**3, activation=keras.activations.relu),
+        layers.Dense(7 ** 4, activation=keras.activations.relu),
+        layers.Dense(7 ** 3, activation=keras.activations.relu),
         layers.Dropout(.1),
         layers.Dense(1)
     ])
@@ -116,3 +118,19 @@ class CustomModel(keras.Model):
         self.compiled_metrics.update_state(y, y_pred)
         # Return a dict mapping metric names to current value
         return {m.name: m.result() for m in self.metrics}
+
+
+class WAMEOptimizer(OptimizerV2):
+    def __init__(self, learning_rate=0.01, name='WAMEOptimizer', **kwargs):
+        super().__init__(name, **kwargs)
+        self.set_hyper('learning_rate', learning_rate)
+
+    def _create_slots(self, var_list):
+        pass
+
+    def _resource_apply_dense(self, grad, handle, apply_state):
+        pass
+
+    def _resource_apply_sparse(self, grad, handle, indices, apply_state):
+        pass
+
