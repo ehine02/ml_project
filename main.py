@@ -4,8 +4,8 @@ from tensorflow import keras
 from tensorflow.keras import layers
 import pandas as pd
 import numpy as np
-from opt import WAMEFromRMSProp, WAMEOptimizer
-from tensorflow.python.keras.optimizer_v2.rmsprop import RMSProp
+from opt import WAME
+
 #
 # Adapted from
 #       https://www.tensorflow.org/tutorials/structured_data/feature_columns
@@ -62,19 +62,20 @@ if __name__ == '__main__':
 
     feature_layer = tf.keras.layers.DenseFeatures(feature_columns)
 
-    batch_size = 32
+    batch_size = 64
     train_ds = df_to_dataset(df, batch_size=batch_size)
     val_ds = df_to_dataset(df, shuffle=False, batch_size=batch_size)
 
     model = tf.keras.Sequential([
         feature_layer,
-        layers.Dense(14, activation=keras.activations.relu),
+        layers.Dense(56, activation=keras.activations.relu),
+        layers.Dense(28, activation=keras.activations.relu),
         layers.Dense(14, activation=keras.activations.relu),
         layers.Dropout(.1),
-        layers.Dense(1, activation=keras.activations.sigmoid)
+        layers.Dense(1)
     ])
 
-    model.compile(optimizer=WAMEOptimizer(),
+    model.compile(optimizer=WAME(),
                   loss=tf.keras.losses.BinaryCrossentropy(from_logits=True),
                   metrics=['accuracy'])
 
