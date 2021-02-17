@@ -57,7 +57,7 @@ class WAME(optimizer_v2.OptimizerV2):
                 one_minus_alpha=1. - self._get_hyper('alpha', var_dtype)))
 
     def _resource_apply_dense(self, grad_t, vars, apply_state):
-        hyper = (apply_state.get((vars.device, vars.dtype.base_dtype)))
+        hyper = apply_state.get((vars.device, vars.dtype.base_dtype))
 
         grad = self.get_slot(vars, 'grad')
         beta = self.get_slot(vars, 'beta')
