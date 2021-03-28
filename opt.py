@@ -40,8 +40,8 @@ class WAME(optimizer_v2.OptimizerV2):
 
     def _create_slots(self, var_list):
         [self.add_slot(var, 'grad', initializer=tf.ones) for var in var_list]
-        [self.add_slot(var, 'beta', initializer=tf.zeros) for var in var_list]
         [self.add_slot(var, 'zeta', initializer=tf.ones) for var in var_list]
+        [self.add_slot(var, 'beta', initializer=tf.zeros) for var in var_list]
         [self.add_slot(var, 'zedd', initializer=tf.zeros) for var in var_list]
 
     def _prepare_local(self, var_device, var_dtype, apply_state):
@@ -57,27 +57,36 @@ class WAME(optimizer_v2.OptimizerV2):
                 one_minus_alpha=1. - self._get_hyper('alpha', var_dtype)))
 
     def _resource_apply_dense(self, grad_t, vars, apply_state):
+        # get the stored hyper parameters
         hyper = apply_state.get((vars.device, vars.dtype.base_dtype))
 
+        # extract the stored state from the previous iteration
         grad = self.get_slot(vars, 'grad')
         beta = self.get_slot(vars, 'beta')
         zeta = self.get_slot(vars, 'zeta')
         zedd = self.get_slot(vars, 'zedd')
 
+        # multiply current gradient by stored gradient to check the sign
         gt_g = grad_t * grad
+
+        # set zeta for this iteration according to the gradient sign and capped eta values
         zeta_t = tf.where(tf.greater(gt_g, tf.zeros_like(gt_g)),
                           tf.minimum(zeta * hyper['eta_pos'], hyper['eta_max']),
                           tf.maximum(zeta * hyper['eta_neg'], hyper['eta_min']))
 
+        # set Z for current iteration
         zedd_t = hyper['alpha'] * zedd + hyper['one_minus_alpha'] * zeta_t
+        # set beta for current iteration
         beta_t = hyper['alpha'] * beta + hyper['one_minus_alpha'] * grad_t ** 2
+        # weights update
         vars_t = vars - (hyper['lr_t'] / zedd_t) * grad_t / (math_ops.sqrt(beta_t) + hyper['epsilon'])
-
+        # store current state for next iteration
         grad.assign(grad_t, use_locking=self._use_locking)
         beta.assign(beta_t, use_locking=self._use_locking)
         zeta.assign(zeta_t, use_locking=self._use_locking)
         zedd.assign(zedd_t, use_locking=self._use_locking)
 
+        # store updated weights and return
         return state_ops.assign(vars, vars_t, use_locking=self._use_locking).op
 
     def _resource_apply_sparse(self, grad, handle, indices, apply_state):
