@@ -7,6 +7,7 @@ import numpy as np
 from opt import WAME
 from sklearn.preprocessing import StandardScaler
 import datetime
+from matplotlib import pyplot
 
 
 #
@@ -56,6 +57,15 @@ def df_to_dataset(df, shuffle=True, batch_size=32):
 if __name__ == '__main__':
     df = get_clean_data()
 
+    batch_size = 160
+    network_width = 7
+    activation = 'relu' # 'tanh'
+    dropout = .2
+    # optimiser = WAME(learning_rate=0.0001)
+    optimiser = keras.optimizers.Adam(learning_rate=0.0001)
+    # optimiser = keras.optimizers.RMSprop(learning_rate=0.0001)
+    epochs = 10
+
     # numeric columns
     feature_columns = [feature_column.numeric_column('age'), feature_column.numeric_column('hours_pw')]
 
@@ -69,24 +79,18 @@ if __name__ == '__main__':
 
     feature_layer = tf.keras.layers.DenseFeatures(feature_columns)
 
-    batch_size = 160
     train_ds = df_to_dataset(df, batch_size=batch_size)
     val_ds = df_to_dataset(df, shuffle=False, batch_size=batch_size)
 
-    print(len(feature_columns))
 
     model = tf.keras.Sequential([
         feature_layer,
-        tf.keras.layers.Dense(7, activation='relu'),
-        #tf.keras.layers.Dense(7, activation='tanh'),
-        #tf.keras.layers.Dense(7, activation='tanh'),
-        tf.keras.layers.Dropout(.25),
+        tf.keras.layers.Dense(network_width, activation=activation),
+        tf.keras.layers.Dropout(dropout),
         tf.keras.layers.Dense(1, activation='sigmoid')
     ])
 
-    model.compile(#optimizer=keras.optimizers.Adam(learning_rate=0.0001),
-                  #optimizer=keras.optimizers.RMSprop(learning_rate=0.0001),
-                optimizer=WAME(learning_rate=0.0001),
+    model.compile(optimizer=optimiser,
                 loss=keras.losses.BinaryCrossentropy(),
                 metrics=[keras.metrics.BinaryAccuracy(),
                     keras.metrics.FalsePositives(),
@@ -95,19 +99,18 @@ if __name__ == '__main__':
                     keras.metrics.TrueNegatives()])
 
     # train/validate
-    history = model.fit(train_ds, validation_data=val_ds, epochs=10)
+    history = model.fit(train_ds, validation_data=val_ds, epochs=epochs)
 
     # test
     test_df = get_clean_data(name='adult.test', skiprows=1, salary_str='<=50K.')
-    test_ds = df_to_dataset(test_df, shuffle=False, batch_size=320)
+    test_ds = df_to_dataset(test_df, shuffle=False, batch_size=batch_size*2)
     loss, accuracy, fp, fn, tp, tn = model.evaluate(test_ds)
-    print("Accuracy", accuracy)
-    print("Loss", loss)
+    print("Test Accuracy", accuracy)
+    print("Test Loss", loss)
     print("False Pos", fp)
     print("False Neg", fn)
     print("True Pos", tp)
     print("True Neg", tn)
-    from matplotlib import pyplot
     pyplot.subplot(211)
     pyplot.title('Loss')
     pyplot.plot(history.history['loss'], label='train')
@@ -121,3 +124,85 @@ if __name__ == '__main__':
     pyplot.legend()
     pyplot.show()
 
+
+def test_models():
+    df = get_clean_data()
+
+    batch_size = 160
+    network_width = 7
+    activation = 'relu' # 'tanh'
+    dropout = .2
+    epochs = 5
+
+    optimisers = {'WAME': WAME(learning_rate=0.0001),
+                  'Adam': keras.optimizers.Adam(learning_rate=0.0001),
+                  'RMSProp': keras.optimizers.RMSprop(learning_rate=0.0001)}
+
+    # numeric columns
+    feature_columns = [feature_column.numeric_column('age'), feature_column.numeric_column('hours_pw')]
+
+    # categorical columns
+    category_columns = ['education_lvl', 'occupation', 'race', 'sex', 'native_country']
+    for col_name in category_columns:
+        categorical_column = feature_column.categorical_column_with_vocabulary_list(
+            col_name, df[col_name].unique())
+        category_column = feature_column.indicator_column(categorical_column)
+        feature_columns.append(category_column)
+
+    feature_layer = tf.keras.layers.DenseFeatures(feature_columns)
+
+    train_ds = df_to_dataset(df, batch_size=batch_size)
+    val_ds = df_to_dataset(df, shuffle=False, batch_size=batch_size)
+
+    models = {}
+
+    for name, optimiser in optimisers.items():
+        model = tf.keras.Sequential([
+            feature_layer,
+            tf.keras.layers.Dense(network_width, activation=activation),
+            tf.keras.layers.Dropout(dropout),
+            tf.keras.layers.Dense(1, activation='sigmoid')
+        ])
+
+        model.compile(optimizer=optimiser,
+                    loss=keras.losses.BinaryCrossentropy(),
+                    metrics=[keras.metrics.BinaryAccuracy(),
+                        keras.metrics.FalsePositives(),
+                        keras.metrics.FalseNegatives(),
+                        keras.metrics.TruePositives(),
+                        keras.metrics.TrueNegatives()])
+
+        models[name] = model
+
+    model_compare(models, train_ds, val_ds)
+
+
+def model_compare(models, train_ds, val_ds):
+    trainings = {}
+    testings = {}
+    for name, model in models.items():
+        # train/validate
+        trainings[name] = model.fit(train_ds, validation_data=val_ds, epochs=5)
+        # test
+        test_df = get_clean_data(name='adult.test', skiprows=1, salary_str='<=50K.')
+        test_ds = df_to_dataset(test_df, shuffle=False, batch_size=320)
+        testings[name] = model.evaluate(test_ds)
+
+    plot_comparison(trainings)
+
+
+def plot_comparison(trainings):
+    pyplot.subplot(211)
+    pyplot.title('Loss')
+    for name, history in trainings.items():
+        pyplot.plot(history.history['loss'], label=name + ' train')
+        pyplot.plot(history.history['val_loss'], label=name + ' cross-val')
+    pyplot.legend()
+    # plot accuracy during training
+    pyplot.subplot(212)
+    pyplot.title('Accuracy')
+    for name, history in trainings.items():
+        pyplot.plot(history.history['binary_accuracy'], label=name + ' train')
+        pyplot.plot(history.history['val_binary_accuracy'], label=name + ' cross-val')
+    pyplot.legend()
+    pyplot.show()

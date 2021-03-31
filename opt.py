@@ -78,7 +78,7 @@ class WAME(optimizer_v2.OptimizerV2):
         zedd_t = hyper['alpha'] * zedd + hyper['one_minus_alpha'] * zeta_t
         # set beta for current iteration
         beta_t = hyper['alpha'] * beta + hyper['one_minus_alpha'] * grad_t ** 2
-        # weights update
+        # weights update for this iteration
         vars_t = vars - (hyper['lr_t'] / zedd_t) * grad_t / (math_ops.sqrt(beta_t) + hyper['epsilon'])
         # store current state for next iteration
         grad.assign(grad_t, use_locking=self._use_locking)
