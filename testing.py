@@ -95,10 +95,10 @@ def plot_comparison(trainings):
 # this harness was adapted to test:
 # 1. combinations of network architectures (Section 2.4 Network Parameters)
 # 2. the stability results for WAME gathered in Appendix 1
-def test_harness(runs=1):
-    batch_sizes = [160]
-    network_widths = [56]
-    activations = ['relu']
+def test_harness(runs=1, batch_sizes=None, widths=None, activations=None):
+    batch_sizes = batch_sizes or [160]
+    network_widths = widths or [56]
+    activations = activations or ['relu']
     dropout = .3
     optimiser = WAME(learning_rate=0.00001)
     epochs = 20
